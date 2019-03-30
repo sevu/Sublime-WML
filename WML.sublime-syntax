@@ -1,0 +1,479 @@
+%YAML 1.2
+---
+name: WML
+file_extensions:
+  - cfg
+  - pbl
+first_line_match: '(#textdomain wesnoth-?[A-Za-z0-9_]*|# wmllint: no translatables)'
+scope: text.wml
+
+# Official doumentation:
+# - https://www.sublimetext.com/docs/3/syntax.html (explanation)
+# - https://www.sublimetext.com/docs/3/scope_naming.html (standard scope names)
+# - https://raw.githubusercontent.com/kkos/oniguruma/5.9.6/doc/RE (regex rules)
+# - Installing the »Package Dev« package gives better syntax highlighting for the rules below.
+# - Ctrl + alt + shift + p shows the contextes used (for highlighting) at the curser position.
+
+# It's possible to describe the whole of WML while only using standardized scopes.
+# However, color schemes don't take all standard scopes into account, thus there are alternatives used in a few spots.
+# In such cases the standarized way is still left there as a comment.
+# (Namely, the WML tag coloring, and namely parentheses and braces use scope names which aren't highlighted.)
+
+
+# General note how it works:
+# One writes Regexes to match something one want to highlitgh. As an example, you want to highlight strings.
+# - You write a rule which looks for »"«. If it matches, you assign a scope to the matched symbol. You also switch the context,
+#   because the things you want to markup there may be different. E.g. parenthesises inside string should not be marked up.
+# - In the new context, you set the meta_scope, which tells color schemes to mark up this area. And you have a rule which
+#   looks again for »"«, and switches back to the previous context when matched.
+
+# - most language elements have one rule which maches the begining and one which maches the ending
+#   E.g. the begin_parentheses looks for the opening »(« while the end_parentheses one looks for »)«.
+#   As after the opening »(« the context is switched, all rules for the area between the parentheses
+#   belong into end_parentheses.
+
+# Many rules are shared between contextes and thus imported. Just be aware that importing rules from a context does
+# not change the context.
+# - As a convention, a context named with »begin_« is imported, and push / pop statements are not in relation to the context
+#   in which the code is written, but into which they are imported.
+# - The ones with »end_« are contextes which one pushes into, and a pop returns to the previous context.
+
+
+# Defining variables for regexes which are hard to read (don't bother about them).
+variables:
+  version: ((\p{Digit}|\.)+(\p{Word}|\+|-)*)
+  message_mandatory: (\p{Graph}(\p{Graph}|\p{Space})+)
+  message_optional: ((\p{Graph}(\p{Graph}|\p{Space})*)*)
+  words: (\p{Word}(\p{Word}|\p{Space})+)
+  path:  (\./|~)?(\p{Word}+/)*(\p{Word}+(\.\p{Word}+)?)?
+
+
+contexts:
+
+  # Everything in the prototype context goes in all other contextes.
+  # Prefering to include manually for now.
+  # prototype:
+  wml:
+    - include: lua
+    - include: begin_string
+    - include: begin_string_strict
+    - include: begin_parentheses
+    - include: begin_braces
+    - include: begin_brackets
+    - include: begin_comment
+    - include: textdomain
+    - include: preprocessor_debug
+
+
+  # The starting context.
+  main:
+    - include: wml
+    - include: begin_key
+    - include: begin_preprocessor_define
+    - include: begin_preprocessor_conditional
+    - include: preprocessor_undef
+      # Rules are only included here and defined in their own context,
+      # So that they can be included elsewhere too.
+    - match: "#(endif|else)"
+      scope: invalid.illegal.wml
+
+
+  # This one uses a feature called »lookahead«. A negative look ahead.
+  # If a »#« is seen in the code, the parser looks at the signs ahead, but doesn't move on yet.
+  # That means, if it matches, the parser will be at the position direclty beind the »#« , and not farther.
+  begin_comment:
+    - match: '#(?!define|arg|endarg|enddef|undef|ifdef|ifndef|ifver|ifnver|ifhave|ifnhave|else|endif|error|warning|deprecated|textdomain)'
+      scope: punctuation.definition.comment.wml
+      push: end_comment
+
+  # The context is switched (with push), because all the other rules in the context should not apply inside a comment.
+  # E.g. strings in a comment aren't strings. meta_scopse can be used to assign a scope for the whole context
+  end_comment:
+    - meta_scope: comment.line.wml
+    - match: $
+      pop: true
+
+
+  # Captures is an alternative for assigning scopes. ( ) marks a subgroup, the first one.
+  textdomain:
+    - match: (#)textdomain wesnoth(-[A-Za-z0-9_]+)?
+      captures:
+        0: keyword.import.from.wml
+        1: meta.preprocessor.wml
+      push: endline
+
+  endline:
+    - match: \p{Graph}
+      scope: invalid.illegal.wml
+    - match: $
+      pop: true
+
+######################## QUOTING LOGIC AND LUA SWITCH #########################
+
+  # Normal quotes (which allow preprocessor usage inside).
+  begin_string:
+    - match: '"'
+      scope: punctuation.definition.string.begin.wml
+      push: end_string
+
+  end_string:
+    - include: begin_braces
+    - meta_scope: string.quoted.double.wml
+      # Double double quotes inside a double quoted strings are one escaped double quote.
+      # E.g. "2"" wheel" is the same as <<2" wheel>>.
+    - match: '(")"'
+      captures:
+        1: constant.character.escape.wml
+
+    - match: '"'
+      scope: punctuation.definition.string.end.wml
+      pop: true
+
+
+  # Quotes which don't allow precropessor usage inside.
+  begin_string_strict:
+    - match: "<<"
+      scope: punctuation.definition.string.begin.wml
+      push: end_string_strict
+
+    # This rule was to detect >> which have not been opened before.
+    # But it doesn't work with the Lua rule, for which >>
+    # is accepted after returning from the external Lua highlighting.
+    #- match: ">>"
+    #  scope: invalid.illegal.wml
+
+  end_string_strict:
+    - meta_scope: string.quoted.other.wml
+    - match: ">>"
+      scope: punctuation.definition.string.end.wml
+      pop: true
+
+  # Better included before begin_string_strict.
+  lua:
+    - match: '(?<=code|lua_function) *= *(<<)'
+      captures:
+        1: punctuation.definition.string.begin.wml
+      push: Packages/Lua/Lua.sublime-syntax
+      with_prototype:
+          # Return directly before a >> sign.
+        - match: "(?=>>)"
+          pop: true
+
+    - match: ">>"
+      scope: punctuation.definition.string.end.wml
+
+######################## PARENTHESES, BRACES AND TAGS #########################
+
+  # Used when giving a block of WML to a macro. So, mostly inside a { } directive.
+  # (Also used for switching to WFL language, which is not implemented yet, and in IPFs)
+  begin_parentheses:
+    - match: \(
+     #scope: punctuation.section.group.begin.wml
+      scope: punctuation.section.parens.begin.wml
+      push: end_parentheses
+
+    - match: \)
+      scope: invalid.illegal.wml
+
+  end_parentheses:
+    - include: begin_string
+   #- meta_scope: meta.group.wml
+    - meta_scope: meta.parens.wml
+    - match: \)
+     #scope: punctuation.section.group.end.wml
+      scope: punctuation.section.parens.end.wml
+      pop: true
+
+      # For nesting parentheses (not sure if this is happening in practice besides for IPFs).
+      # Included last, because it also includes the match with invalid.illegal.wml.
+    - include: begin_parentheses
+
+
+  # Preprocessor macro usage. The { } directive.
+  begin_braces:
+    - match: \{
+      scope: punctuation.section.braces.begin.wml
+      push: end_braces
+
+    - match: \}
+      scope: invalid.illegal.wml
+
+  # Strings and parentheses are allowed inside macro calls.
+  end_braces:
+    - include: begin_string
+    - include: begin_parentheses
+    - meta_scope: meta.braces.wml
+    - match: \}
+      scope: punctuation.section.braces.end.wml
+      pop: true
+
+      # For nested braces, e.g. a defense anim with soundlist macro.
+      # Included last, because it also includes the match with invalid.illegal.wml.
+    - include: begin_braces
+
+
+  # WML tags
+  # In difference to the above, this handles only the tag itself, not the area between it and the end tag.
+  # Not assigning scopes for the brackets itelf, because they are one element with the tag.
+  # Meta scope for tags is often not highlighted by schemes, though entity.name.tag… is.
+  begin_brackets:
+    - match: \[
+     #scope: punctuation.section.brackets.begin.wml
+     #scope: punctuation.definition.tag.begin.wml
+      push: end_brackets
+
+      # that should only come inside the end_brackets context
+    - match: \]
+      scope: invalid.illegal.wml
+
+  end_brackets:
+   #- meta_scope: meta.brackets.wml
+   #- meta_scope: meta.tag.wml
+    - meta_scope: variable.function.wml
+
+      # nesting is not allowed
+    - match: \[
+      scope: invalid.illegal.wml
+
+    - match: \]
+     #scope: punctuation.section.brackets.end.wml
+     #scope: punctuation.definition.tag.end.wml
+      pop: true
+
+   #- match: \p{Word}
+   #  scope: entity.name.tag.wml
+
+########################### KEY=VALUE HIGHLIGHTING ############################
+
+  # Is there going to come a »=«? If so, switch to key highlightling.
+  begin_key:
+    - match: '\p{Word}+(?=( *, *\p{Graph}+)*=)'
+      scope: entity.name.key.wml
+      push: middle_key
+
+  middle_key:
+    - include: wml
+    - include: begin_preprocessor_define
+    - include: begin_preprocessor_conditional
+    - include: preprocessor_undef
+
+      # There might be multiple keys, e.g. as in x,y=3,3.
+    - match: \p{Word}+
+      scope: entity.name.key.wml
+
+    - match: ','
+      scope: punctuation.separator.continuation.wml
+
+      # Switching to value highlighting.
+    - match: \=
+     #scope: keyword.operator.assignment.wml
+      scope: punctuation.separator.mapping.key-value.wml
+      set: end_key
+
+  end_key:
+    - include: wml
+    - include: begin_preprocessor_define
+    - include: begin_preprocessor_conditional
+    - include: preprocessor_undef
+
+    - match: $
+      pop: true
+
+    - match: ','
+      scope: punctuation.separator.continuation.wml
+
+      # Doesn't really belong here, but because [ ] from Animation WML are detcted as WML tags,
+      # marking up the colon too. So, Animation WML highlighting as a side effect.
+    - match: ':'
+      scope: punctuation.separator.continuation.wml
+
+    # Marks everything as value, except for the part wich is covered by imported / above rules.
+    - match: \p{Print}
+      scope: string.unquoted.wml
+
+
+########################## PREPROCESSOR DIRECTIVES #############################
+# Implementing the behavior described at https://wiki.wesnoth.org/PreprocessorRef,
+# except for »Inclusion directive {}«, which is described above.
+
+
+  begin_preprocessor_conditional:
+    - match: (#)(ifdef|ifndef) \p{Word}+
+      captures:
+        0: keyword.control.conditional.if.wml
+        1: meta.preprocessor.wml
+      push: endline_preprocessor_conditional
+
+    - match: (#)(ifver|ifnver) \p{Word}+ +(==|!=|<|<=|>|>=) +{{version}}
+      captures:
+        0: keyword.control.conditional.if.wml
+        1: meta.preprocessor.wml
+      push: endline_preprocessor_conditional
+
+    - match: (#)(ifhave|ifnhave) +{{path}}
+      captures:
+        0: keyword.control.conditional.if.wml
+        1: meta.preprocessor.wml
+      push: endline_preprocessor_conditional
+
+      # Thise ones are only allowed in the respective context.
+    - match: "#(arg|endarg|enddef)"
+      scope: invalid.illegal.wml
+
+  endline_preprocessor_conditional:
+    - match: \p{Graph}
+      scope: invalid.illegal.wml
+    - match: $
+      set: preprocessor_endif
+
+  # Same as in main scope.
+  # Except that we know that we are in a conditional, and keep track of nexted conditonals.
+  # We can thus only allow #else and #endif here.
+  preprocessor_endif:
+    - include: wml
+    - include: begin_key
+    - include: begin_preprocessor_define
+    - include: begin_preprocessor_conditional
+    - include: preprocessor_undef
+    - match: (#)else
+      captures:
+        0: keyword.control.conditional.else.wml
+        1: meta.preprocessor.wml
+      push: endline
+
+    - match: (#)endif
+      captures:
+        0: keyword.control.conditional.end.wml
+        1: meta.preprocessor.wml
+      set: endline
+
+      # Nesting is allowed, args are only allowed inside defines and defines can't end.wml here,
+    - match: "#(arg|endarg|enddef)"
+      scope: invalid.illegal.wml
+
+
+  begin_preprocessor_define:
+    - match: (#)define( \p{Word}+)+
+      captures:
+        0: keyword.other.wml
+        1: meta.preprocessor.wml
+      push: preprocessor_enddef
+
+    - match: "#enddef"
+      scope: invalid.illegal.wml
+
+  # Defines can't have conditionals inside them, or nested defines. But args.
+  preprocessor_enddef:
+    - include: wml
+    - include: begin_key
+    - include: preprocessor_args
+    - match: (#)enddef
+      captures:
+        0: keyword.control.conditional.end.wml
+        1: meta.preprocessor.wml
+      set: endline
+
+      # Defines aren't allowed to be nested,
+      # and many other preprocessor directives aren't allowed inside a define.
+    - match: "#(define|ifdef|ifndef|ifver|ifnver|ifhave|ifnhave|else|endif)"
+      scope: invalid.illegal.wml
+
+  # Only allowed inside defines.
+  preprocessor_args:
+    - match: (#)arg +\p{Word}+
+      captures:
+        0: keyword.other.wml
+        1: meta.preprocessor.wml
+      push: endline_preprocessor_arg
+
+  endline_preprocessor_arg:
+    - match: \p{Graph}
+      scope: invalid.illegal.wml
+    - match: $
+      set: preprocessor_endarg
+
+  preprocessor_endarg:
+    - include: wml
+    - include: begin_key
+    - match: (#)endarg
+      captures:
+        0: keyword.control.conditional.end.wml
+        1: meta.preprocessor.wml
+      set: endline
+
+      # Args aren't allowed to be nested,
+      # and many other preprocessor directives aren't allowed inside a define.
+    - match: "#(arg|define|enddef|ifdef|ifndef|ifver|ifnver|ifhave|ifnhave|else|endif)"
+      scope: invalid.illegal.wml
+
+
+  # According to the docs, should be allowed inside all of the above.
+  preprocessor_debug:
+    - match: (#)warning( +{{message_optional}})*$
+      captures:
+        0: keyword.other.wml
+        1: meta.preprocessor.wml
+
+    - match: (#)error( +{{message_optional}})*$
+      captures:
+        0: keyword.other.wml
+        1: meta.preprocessor.wml
+
+    # At least allowed in defines and outside of macros.
+    - match: (#)deprecated +[1,4] +{{message_mandatory}}+$
+      captures:
+        0: keyword.other.wml
+        1: meta.preprocessor.wml
+
+    - match: (#)deprecated +[2,3] +{{version}} +{{message_mandatory}}+$
+      captures:
+        0: keyword.other.wml
+        1: meta.preprocessor.wml
+
+
+  # Probably not allowed in defines.
+  preprocessor_undef:
+    - match: (#)undef \p{Word}+
+      captures:
+        0: keyword.other.wml
+        1: meta.preprocessor.wml
+      push: endline
+
+
+# Todo:
+# - Using colors for { } and / or ( ).
+#   Support for them is there, but needs another meta_scope
+
+# - From there on, the question will be raised about how the part between ( ) should be marked up.
+#   Possibly WML tags and key=value markup should be highted inside ( );
+#   clear_scopes may be needed to get it right if ( ) get's colored.
+#   If the gender macro in the mainline tutorial part I looks good with it, it's good!
+
+# Also:
+# - Experimentating with different scopes names.
+
+
+# Further ideas:
+
+# About tags:
+# - Matching opening and closing tagnames. Maybe not possible.
+#   Would be nice, but goes beyond the scope of highlighting, thus (optional).
+# - In case it is possible, support for magic wmlxgettext comments can be added to
+#   simultaneously support unbalanced WML. (optional)
+# - Needs more learning about how xml files are supported.
+
+# About variables and WFL:
+#   That could be done by defining a separate hidden language for WFL, and embedding the way Lua is.
+#   That's more than just highlighting variables, before that { } and ( ) should work well.
+
+# About giving some values of key-value pairs special treatment:
+# - Highlighting Numbers: Would that help, or just be noise?
+#   We can't know about the sematic of the »values«, whether they are to be numbers, text or paths to an image.
+#   Currently not marking up numbers.
+# - Declare yes,no,all,true,false as keyword.
+#   If so, where to draw the line, melee, arcane, networked? (optional)
+# - Not considered yet: ImagePathFunctions, terrain codes, progressive strings from animations.
+
+# Code Improvement:
+# - The way the Lua context switch happens, we can't look whether a << >> pair is closed without being opened.
+# - Lua is doing better with marking up invalid code.

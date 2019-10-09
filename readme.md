@@ -18,5 +18,6 @@ If you miss something, or want to further expand it:
 ## How it looks
 ![screenshot.png](
 https://user-images.githubusercontent.com/21158813/55279259-d2a62300-5316-11e9-91f6-f98ec08bb443.png)
-…using the Breakers color scheme.  
+
+… using the Breakers color scheme.  
 Lua code is detected by the »code« key and the strong quotes.

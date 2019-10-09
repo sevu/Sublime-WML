@@ -7,7 +7,7 @@ file_extensions:
 first_line_match: '(#textdomain wesnoth-?[A-Za-z0-9_]*|# wmllint: no translatables)'
 scope: text.wml
 
-# Official doumentation:
+# Official documentation:
 # - https://www.sublimetext.com/docs/3/syntax.html (explanation)
 # - https://www.sublimetext.com/docs/3/scope_naming.html (standard scope names)
 # - https://raw.githubusercontent.com/kkos/oniguruma/5.9.6/doc/RE (regex rules)
@@ -42,9 +42,12 @@ scope: text.wml
 # Defining variables for regexes which are hard to read (don't bother about them).
 variables:
   version: ((\p{Digit}|\.)+(\p{Word}|\+|-)*)
-  message_mandatory: (\p{Graph}(\p{Graph}|\p{Space})+)
-  message_optional: ((\p{Graph}(\p{Graph}|\p{Space})*)*)
+  # modified variant of Alnum, with some additional allowed
+  sign: (\p{Alnum}|:|_)
+  message_mandatory: (\p{Alnum}(\p{Alnum}|\p{Space})+)
+  message_optional: ((\p{Alnum}(\p{Alnum}|\p{Space})*)*)
   words: (\p{Word}(\p{Word}|\p{Space})+)
+  # path of the form ~add-ons/ or ./foo or multiplayer/
   path:  (\./|~)?(\p{Word}+/)*(\p{Word}+(\.\p{Word}+)?)?
 
 
@@ -52,7 +55,8 @@ contexts:
 
   # Everything in the prototype context goes in all other contextes.
   # Prefering to include manually for now.
-  # prototype:
+  #prototype:
+
   wml:
     - include: lua
     - include: begin_string
@@ -316,7 +320,7 @@ contexts:
         1: meta.preprocessor.wml
       push: endline_preprocessor_conditional
 
-      # Thise ones are only allowed in the respective context.
+      # These ones are only allowed in the respective context.
     - match: "#(arg|endarg|enddef)"
       scope: invalid.illegal.wml
 
@@ -327,7 +331,7 @@ contexts:
       set: preprocessor_endif
 
   # Same as in main scope.
-  # Except that we know that we are in a conditional, and keep track of nexted conditonals.
+  # Except that we know that we are in a conditional, and keep track of nested conditonals.
   # We can thus only allow #else and #endif here.
   preprocessor_endif:
     - include: wml
@@ -353,7 +357,7 @@ contexts:
 
 
   begin_preprocessor_define:
-    - match: (#)define( \p{Word}+)+
+    - match: (#)define( {{sign}}+)+
       captures:
         0: keyword.other.wml
         1: meta.preprocessor.wml
@@ -477,3 +481,4 @@ contexts:
 # Code Improvement:
 # - The way the Lua context switch happens, we can't look whether a << >> pair is closed without being opened.
 # - Lua is doing better with marking up invalid code.
+# - https://wiki.wesnoth.org/GrammarWML exists, may be useful

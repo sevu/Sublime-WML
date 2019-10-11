@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>name</key>
+    <string>Indention</string>
+    <key>scope</key>
+    <string>text.wml</string>
+    <key>settings</key>
+    <dict>
+        <key>decreaseIndentPattern</key>
+        <string>.*\[/.*\].*</string>
+        <key>increaseIndentPattern</key>
+        <string>.*\[[^/]*\].*</string>
+        <key>unIndentedLinePattern</key>
+        <string>^#(define|arg|endarg|enddef|undef|ifdef|ifndef|ifver|ifnver|ifhave|ifnhave|else|endif|error|warning|deprecated|textdomain).*</string>
+    </dict>
+</dict>
+</plist>

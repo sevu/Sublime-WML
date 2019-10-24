@@ -48,7 +48,7 @@ variables:
   message_optional: ((\p{Alnum}(\p{Alnum}|\p{Space})*)*)
   words: (\p{Word}(\p{Word}|\p{Space})+)
   # path of the form ~add-ons/ or ./foo or multiplayer/
-  path:  (\./|~)?(\p{Word}+/)*(\p{Word}+(\.\p{Word}+)?)?
+  path:  (\./|~)?(\p{Graph}+/)*(\p{Graph}+(\.\p{Graph}+)?)?
 
 
 contexts:

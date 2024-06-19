@@ -4,17 +4,19 @@ name: WML
 file_extensions:
   - cfg
   - pbl
-first_line_match: '(#textdomain wesnoth-?[A-Za-z0-9_]*|# wmllint: no translatables)'
+  - rgs
+first_line_match: '(#textdomain wesnoth-?[A-Za-z0-9_]*|# wmllint: no translatables)|version=".+"'
 scope: text.wml
+version: 2
 
 # Official documentation:
-# - https://www.sublimetext.com/docs/3/syntax.html (explanation)
-# - https://www.sublimetext.com/docs/3/scope_naming.html (standard scope names)
+# - https://www.sublimetext.com/docs/syntax.html (explanation)
+# - https://www.sublimetext.com/docs/scope_naming.html (standard scope names)
 # - https://raw.githubusercontent.com/kkos/oniguruma/5.9.6/doc/RE (regex rules)
 # - Installing the »Package Dev« package gives better syntax highlighting for the rules below.
 # - Ctrl + alt + shift + p shows the contextes used (for highlighting) at the curser position.
 
-# It's possible to describe the whole of WML while only using standardized scopes.
+# It is possible to describe the whole of WML while only using standardized scopes.
 # However, color schemes don't take all standard scopes into account, thus there are alternatives used in a few spots.
 # In such cases the standarized way is still left there as a comment.
 # (Namely, the WML tag coloring, and namely parentheses and braces use scope names which aren't highlighted.)
@@ -23,7 +25,7 @@ scope: text.wml
 # General note how it works:
 # One writes Regexes to match something one want to highlitgh. As an example, you want to highlight strings.
 # - You write a rule which looks for »"«. If it matches, you assign a scope to the matched symbol. You also switch the context,
-#   because the things you want to markup there may be different. E.g. parenthesises inside string should not be marked up.
+#   because the things you want to markup there may be different. E.g. parentheses inside a string should not be marked up.
 # - In the new context, you set the meta_scope, which tells color schemes to mark up this area. And you have a rule which
 #   looks again for »"«, and switches back to the previous context when matched.
 
@@ -42,7 +44,7 @@ scope: text.wml
 # Defining variables for regexes which are hard to read (don't bother about them).
 variables:
   version: ((\p{Digit}|\.)+(\p{Word}|\+|-)*)
-  # modified variant of Alnum, with some additional allowed
+  # modified variant of Alnum, with some additional allowed signs
   sign: (\p{Alnum}|:|_)
   message_mandatory: (\p{Alnum}(\p{Alnum}|\p{Space})+)
   message_optional: ((\p{Alnum}(\p{Alnum}|\p{Space})*)*)
@@ -91,7 +93,7 @@ contexts:
       push: end_comment
 
   # The context is switched (with push), because all the other rules in the context should not apply inside a comment.
-  # E.g. strings in a comment aren't strings. meta_scopse can be used to assign a scope for the whole context
+  # E.g. strings in a comment aren't strings. Meta_scopes can be used to assign a scope for the whole context.
   end_comment:
     - meta_scope: comment.line.wml
     - match: $
@@ -157,14 +159,11 @@ contexts:
     - match: '(?<=code|lua_function) *= *(<<)'
       captures:
         1: punctuation.definition.string.begin.wml
-      push: Packages/Lua/Lua.sublime-syntax
-      with_prototype:
-          # Return directly before a >> sign.
-        - match: "(?=>>)"
-          pop: true
+      embed: scope:source.lua
+      escape:  ">>"
+      escape_captures:
+        0: punctuation.definition.string.end.wml
 
-    - match: ">>"
-      scope: punctuation.definition.string.end.wml
 
 ######################## PARENTHESES, BRACES AND TAGS #########################
 
